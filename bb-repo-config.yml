@@ -27,7 +27,6 @@
         - name: Do assertions on configfile and AWS credential envvars
           assert:
             that:
-              - "config_file is defined"
               - "key.rc == 0"
               - "secret.rc == 0"
               - "region.rc == 0"
