@@ -69,12 +69,12 @@
 
     - name: "Get list of all repo config files to include in sa_bb_config.yml"
       set_fact:
-        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/BitbucketRepoConfigs/include; find . -name \\*\\.\\*y\\*ml').split() }}"
+        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name \\*\\.\\*y\\*ml').split() }}"
       tags: [ 'always' ]
 
     - name: "Process the repo bb config template"
       template:
-        src: "{{ config_basedir }}/BitbucketRepoConfigs/sa_bb_config.yml"
+        src: "{{ config_basedir }}/sa_bb_config.yml"
         dest: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
       tags: [ 'always' ]
 
