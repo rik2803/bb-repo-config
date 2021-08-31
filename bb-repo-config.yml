@@ -37,25 +37,9 @@
     - config_basedir: "{{ config_file | dirname }}"
 
   tasks:
-    - name: "TODO Assume role for bastion/admin"
-      sts_assume_role:
-        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
-        role_session_name: "bastion-{{ bastion_account.account_id }}-{{ bastion_account.sts_role }}"
-      register: assumed_role
-      check_mode: no
-      tags: [ 'always' ]
-
     - name: "Get list of all repo config files to include in sa_bb_config.yml"
       set_fact:
         bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name \\*\\.\\*y\\*ml').split() }}"
-      tags: [ 'always' ]
-
-    - name: "Get client_id, client_secret, user and api token for BB authentication from AWS SSM in the Bastion account"
-      set_fact:
-        client_id: "{{ lookup('aws_ssm', 'bb_client_id', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-        client_secret: "{{ lookup('aws_ssm', 'bb_client_secret', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-        bb_user: "{{ lookup('aws_ssm', 'bb_user', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-        bb_apitoken: "{{ lookup('aws_ssm', 'bb_apitoken', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
       tags: [ 'always' ]
 
     - name: "Get list of all repo config files to include in sa_bb_config.yml"
@@ -73,6 +57,22 @@
       include_vars:
         file: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
         name: "sa_bb_config"
+      tags: [ 'always' ]
+
+    - name: "TODO Assume role for bastion/admin"
+      sts_assume_role:
+        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
+        role_session_name: "bastion-{{ bastion_account.account_id }}-{{ bastion_account.sts_role }}"
+      register: assumed_role
+      check_mode: no
+      tags: [ 'always' ]
+
+    - name: "Get client_id, client_secret, user and api token for BB authentication from AWS SSM in the Bastion account"
+      set_fact:
+        client_id: "{{ lookup('aws_ssm', 'bb_client_id', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        client_secret: "{{ lookup('aws_ssm', 'bb_client_secret', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        bb_user: "{{ lookup('aws_ssm', 'bb_user', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        bb_apitoken: "{{ lookup('aws_ssm', 'bb_apitoken', aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
       tags: [ 'always' ]
 
     - name: "Set bb_username and bb_workspace facts"
