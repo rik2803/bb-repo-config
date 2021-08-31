@@ -24,13 +24,6 @@
           failed_when: false
           changed_when: false
           check_mode: no
-        - name: Test if config file exists
-          stat:
-            path: "{{ config_file }}"
-          register: configfile
-          failed_when: false
-          changed_when: false
-          check_mode: no
         - name: Do assertions on configfile and AWS credential envvars
           assert:
             that:
@@ -38,7 +31,6 @@
               - "key.rc == 0"
               - "secret.rc == 0"
               - "region.rc == 0"
-              - "configfile.stat.exists"
 
   vars_files:
     - "{{ config_file }}"
