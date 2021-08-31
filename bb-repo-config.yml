@@ -32,7 +32,7 @@
               - "region.rc == 0"
 
   vars:
-    - config_basedir: "{{ config_basedir | default('.') }}"
+    - config_basedir: "{{ config_basedir | default('/config') }}"
 
   tasks:
     - name: "Get list of all repo config files to include in sa_bb_config.yml"
