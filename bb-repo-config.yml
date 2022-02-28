@@ -69,7 +69,6 @@
     - name: "Read repo bb config"
       include_vars:
         file: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
-        name: "sa_bb_config"
       tags: [ 'always' ]
 
     - name: "Assume role for bastion/admin"
