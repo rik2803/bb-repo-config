@@ -75,7 +75,7 @@
     - name: "Assume role for bastion/admin"
       sts_assume_role:
         role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
-        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
+        role_session_name: "bastion-{{ sa_bb_config.bastion_account_id }}-{{ sa_bb_config.sts_role }}"
       register: assumed_role
       check_mode: no
       tags: [ 'always' ]
