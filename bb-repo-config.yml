@@ -205,7 +205,7 @@
           "Content-Type": "application/json"
       when: "item.item.branching_model is defined or bitbucket.default_branching_model is defined"
       with_items:
-        - "{{ repos }}"
+        - "{{ repo_create_result.results }}"
 
     - name: "Set repo permissions"
       uri:
@@ -250,7 +250,7 @@
           - 200
       when: "item.1.state == 'present'"
       with_nested:
-        - "{{ repos }}"
+        - "{{ repo_create_result.results }}"
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
@@ -266,7 +266,7 @@
           - 404
       when: "item.1.state != 'present'"
       with_nested:
-        - "{{ repos }}"
+        - "{{ repo_create_result.results }}"
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
