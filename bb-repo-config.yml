@@ -43,14 +43,6 @@
         bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name \\*\\.\\*y\\*ml').split() }}"
       tags: [ 'always' ]
 
-    - name: "Assume role for bastion/admin"
-      sts_assume_role:
-        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
-        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
-      register: assumed_role
-      check_mode: no
-      tags: [ 'always' ]
-
     - name: "Set limit_bb_repo_regex if limit_bb_repo is defined"
       set_fact:
         limit_bb_repo_regex: "{{ limit_bb_repo }}\\*.\\*y\\*ml"
@@ -78,6 +70,14 @@
       include_vars:
         file: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
         name: "sa_bb_config"
+      tags: [ 'always' ]
+
+    - name: "Assume role for bastion/admin"
+      sts_assume_role:
+        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
+        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
+      register: assumed_role
+      check_mode: no
       tags: [ 'always' ]
 
     - name: "Get client_id, client_secret, user and api token for BB authentication from AWS SSM in the Bastion account"
