@@ -43,6 +43,31 @@
         bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name \\*\\.\\*y\\*ml').split() }}"
       tags: [ 'always' ]
 
+    - name: "Assume role for bastion/admin"
+      sts_assume_role:
+        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
+        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
+      register: assumed_role
+      check_mode: no
+      tags: [ 'always' ]
+
+    - name: "Set limit_bb_repo_regex if limit_bb_repo is defined"
+      set_fact:
+        limit_bb_repo_regex: "{{ limit_bb_repo }}\\*.\\*y\\*ml"
+      when: "limit_bb_repo is defined"
+      tags: [ 'always' ]
+
+    - name: "Set limit_bb_repo_regex if limit_bb_repo is not defined"
+      set_fact:
+        limit_bb_repo_regex: "\\*\\.\\*y\\*ml"
+      when: "limit_bb_repo is not defined"
+      tags: [ 'always' ]
+
+    - name: "Get list of all repo config files to include in sa_bb_config.yml"
+      set_fact:
+        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/BitbucketRepoConfigs/include; find . -name {{ limit_bb_repo_regex }}').split() }}"
+      tags: [ 'always' ]
+
     - name: "Process the repo bb config template"
       template:
         src: "{{ config_basedir }}/sa_bb_config.yml"
@@ -52,14 +77,7 @@
     - name: "Read repo bb config"
       include_vars:
         file: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
-      tags: [ 'always' ]
-
-    - name: "TODO Assume role for bastion/admin"
-      sts_assume_role:
-        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
-        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
-      register: assumed_role
-      check_mode: no
+        name: "sa_bb_config"
       tags: [ 'always' ]
 
     - name: "Get client_id, client_secret, user and api token for BB authentication from AWS SSM in the Bastion account"
@@ -81,7 +99,7 @@
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.name }}
         method: PUT
         user: "{{ bb_user }}"
-        password: "{{  bb_apitoken }}"
+        password: "{{ bb_apitoken }}"
         force_basic_auth: yes
         body: |
           {
@@ -89,7 +107,8 @@
             "is_private": true,
             "project": {
               "key": "{{ item.project_key }}"
-            }
+            },
+            "language": "{{ item.language | default('java') }}"
           }
         body_format: "json"
         status_code:
@@ -97,9 +116,160 @@
           - 201
         headers:
           "Content-Type": "application/json"
-      when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined and item.project_key is defined"
+      when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.project_key is defined"
+      register: repo_create_result
       with_items:
+        - "{{ sa_bb_config.repos }}"
+
+    - name: "Create README.md on master branch if repo was just created (repo created less than 20 seconds ago)"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.item.name }}/src
+        method: POST
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body_format: "form-urlencoded"
+        body:
+          branch: "master"
+          message: "Initial commit"
+          "/README.md": |
+            # README #
+            
+            This README would normally document whatever steps are necessary to get your application up and running.
+            
+            ### What is this repository for? ###
+            
+            * Quick summary
+            * Version
+            * [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+            
+            ### How do I get set up? ###
+            
+            * Summary of set up
+            * Configuration
+            * Dependencies
+            * Database configuration
+            * How to run tests
+            * Deployment instructions
+            
+            ### Contribution guidelines ###
+            
+            * Writing tests
+            * Code review
+            * Other guidelines
+            
+            ### Who do I talk to? ###
+            
+            * Repo owner or admin
+            * Other community or team contact
+        status_code:
+          - 201
+      when: "item.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 20"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+
+    - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 20 seconds ago)"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/branch-restrictions
+        method: POST
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.1 | to_json }}"
+        body_format: "json"
+        status_code:
+          - 201
+        headers:
+          "Content-Type": "application/json"
+      when: "item.0.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 20"
+      with_nested:
+        - "{{ sa_bb_config.repos }}"
+        - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
+
+    ### Work in progress, call fails with:
+    #      Cannot update repository branching model when inherited project settings is on
+    #   That setting is enabled by default and cannot be disabled with an API call. A feature request was logged:
+    #      https://jira.atlassian.com/browse/BCLOUD-21663
+    #   This was fixed by BB on 20220212
+    - name: "Set branching model on the repo"
+      uri:
+        url: "https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.item.name }}/branching-model/settings"
+        method: PUT
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.item.branching_model | default(bitbucket.default_branching_model) | default([]) | to_json }}"
+        body_format: "json"
+        status_code:
+          - 200
+        headers:
+          "Content-Type": "application/json"
+      when: "item.item.branching_model is defined or bitbucket.default_branching_model is defined"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+
+    - name: "Set repo permissions"
+      uri:
+        url: "https://api.bitbucket.org/1.0/group-privileges/{{ bb_workspace }}/{{ item.0.name }}/{{ bb_workspace }}/{{ item.1.group_slug }}"
+        method: PUT
+        user: "{{  bb_user }}"
+        password: "{{  bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.1.privilege }}"
+        status_code:
+          - 200
+          - 201
+      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      loop: "{{ q('subelements', sa_bb_config.repos, 'group_permissions', {'skip_missing': True}) }}"
+      tags: [ 'bb_permissions' ]
+
+    - name: "Always grant the default-reviewers group RW access to the repo"
+      uri:
+        url: "https://api.bitbucket.org/1.0/group-privileges/{{ bb_workspace }}/{{ item.name }}/{{ bb_workspace }}/default-reviewers"
+        method: PUT
+        user: "{{  bb_user }}"
+        password: "{{  bb_apitoken }}"
+        force_basic_auth: yes
+        body: "write"
+        status_code:
+          - 200
+          - 201
+      when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
+      failed_when: false
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_permissions' ]
+
+    - name: "Add default reviewers to the repo"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/default-reviewers/{{ item.1.uuid }}
+        method: PUT
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        status_code:
+          - 200
+      when: "item.1.state == 'present'"
+      with_nested:
         - "{{ repos }}"
+        - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
+      tags: [ 'bb_permissions' ]
+
+    - name: "Delete default reviewers to the repo"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/default-reviewers/{{ item.1.uuid }}
+        method: DELETE
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        status_code:
+          - 204
+          - 404
+      when: "item.1.state != 'present'"
+      with_nested:
+        - "{{ repos }}"
+        - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
+      tags: [ 'bb_permissions' ]
 
     - name: "Enable pipelines for repo"
       uri:
@@ -123,141 +293,189 @@
       with_items:
         - "{{ repos }}"
 
-#    - name: "Set repo permissions"
-#      uri:
-#        url: "https://api.bitbucket.org/1.0/group-privileges/{{ bb_workspace }}/{{ item.0.name }}/{{ bb_workspace }}/{{ item.1.group_slug }}"
-#        method: PUT
-#        user: "{{  bb_user }}"
-#        password: "{{  bb_apitoken }}"
-#        force_basic_auth: yes
-#        body: "{{ item.1.privilege }}"
-#        status_code:
-#          - 200
-#          - 201
-#      when: "(limit_bb_repo is not defined or item.0.name is search(limit_bb_repo)) and item.0.service_account_list is defined"
-#      loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
-#
-#    - name: "Set BB repo pipeline variable SA_ACCOUNT_LIST"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.name }}"
-#        username: "{{ bb_username }}"
-#        name: "SA_ACCOUNT_LIST"
-#        value: "{{ item.service_account_list | map(attribute='name') | list | join(' ') }}"
-#        secured: "{{ item.1.secured | default('no') }}"
-#        state: "{{ item.1.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined"
-#      with_items:
-#        - "{{ repos }}"
-#
-#    - name: "Set BB repo pipeline variable AWS_DEFAULT_REGION"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.name }}"
-#        username: "{{ bb_username }}"
-#        name: "AWS_DEFAULT_REGION"
-#        value: "{{ item.aws_default_region | default(aws_default_region) }}"
-#        secured: "no"
-#        state: present
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined"
-#      with_items:
-#        - "{{ repos }}"
-#
-#    - name: "Set BB repo pipeline variable ROLE_TO_ASSUME"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.0.name }}"
-#        username: "{{ bb_username }}"
-#        name: "ROLE_TO_ASSUME_{{ item.1.name }}"
-#        value: "arn:aws:iam::{{ lookup('aws_ssm', 'ACCOUNT_ID_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}:role/ServiceAccount/{{ item.1.role_to_assume | default('cicd') }}"
-#        secured: "{{ item.1.secured | default('no') }}"
-#        state: "{{ item.1.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "limit_bb_repo is not defined or item.0.name is search(limit_bb_repo)"
-#      with_subelements:
-#        - "{{ repos }}"
-#        - "service_account_list"
-#        - skip_missing: True
-#
-#    - name: "Set BB repo pipeline variables holding AWS access key ids"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.0.name }}"
-#        username: "{{ bb_username }}"
-#        name: "ACCESS_KEY_ID_{{ item.1.name }}"
-#        value: "{{ lookup('aws_ssm', 'ACCESS_KEY_ID_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-#        secured: "{{ item.1.secured | default('yes') }}"
-#        state: "{{ item.1.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "limit_bb_repo is not defined or item.0.name is search(limit_bb_repo)"
-#      with_subelements:
-#        - "{{ repos }}"
-#        - "service_account_list"
-#        - skip_missing: True
-#      tags: [ 'rotate_credentials' ]
-#
-#    - name: "Set BB repo pipeline variables holding AWS secret keys"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.0.name }}"
-#        username: "{{ bb_username }}"
-#        name: "SECRET_ACCESS_KEY_{{ item.1.name }}"
-#        value: "{{ lookup('aws_ssm', 'SECRET_ACCESS_KEY_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-#        secured: "{{ item.1.secured | default('yes') }}"
-#        state: "{{ item.1.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "limit_bb_repo is not defined or item.0.name is search(limit_bb_repo)"
-#      with_subelements:
-#        - "{{ repos }}"
-#        - "service_account_list"
-#        - skip_missing: True
-#      tags: [ 'rotate_credentials' ]
-#
-#    - name: "Set BB repo pipeline variables holding AWS account ID"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.0.name }}"
-#        username: "{{ bb_username }}"
-#        name: "ACCOUNT_ID_{{ item.1.name }}"
-#        value: "{{ lookup('aws_ssm', 'ACCOUNT_ID_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-#        secured: "{{ item.1.secured | default('no') }}"
-#        state: "{{ item.1.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "limit_bb_repo is not defined or item.0 is search(limit_bb_repo)"
-#      with_subelements:
-#        - "{{ repos }}"
-#        - "service_account_list"
-#        - skip_missing: True
-#
-#    - name: "Set custom BB repo pipeline variables"
-#      community.general.bitbucket_pipeline_variable:
-#        repository: "{{ item.0.name }}"
-#        username: "{{ bb_username }}"
-#        name: "{{ item.1.name}}"
-#        value: "{{ item.1.value }}"
-#        secured: "{{ item.1.secured | default('no') }}"
-#        state: "{{ item.1.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "limit_bb_repo is not defined or item.0.name is search(limit_bb_repo)"
-#      with_subelements:
-#        - "{{ repos }}"
-#        - custom_vars
-#        - skip_missing: True
-#
-#    # The private and public key SSM parameters should be manually added to the SSM parameter store in
-#    # the bastion account
-#    - name: "Set repo pipeline SSH keypair"
-#      community.general.bitbucket_pipeline_key_pair:
-#        repository: "{{ item.name }}"
-#        username: "{{ bb_username }}"
-#        public_key: "{{ lookup('aws_ssm', item.ssh.public_key_ssm_var_name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-#        private_key: "{{ lookup('aws_ssm', item.ssh.private_key_ssm_var_name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
-#        state: "{{ item.ssh.state | default('present') }}"
-#        client_id: "{{ client_id }}"
-#        client_secret: "{{ client_secret }}"
-#      when: "item.ssh is defined and (limit_bb_repo is not defined or item.name is search(limit_bb_repo))"
-#      with_items:
-#        - "{{ repos }}"
+    - name: "Set BB repo pipeline variable SA_ACCOUNT_LIST"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "SA_ACCOUNT_LIST"
+        value: "{{ item.service_account_list | map(attribute='name') | list | join(' ') }}"
+        secured: "{{ item.1.secured | default('no') }}"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_serviceaccounts' ]
+
+    - name: "Set BB repo pipeline variable AWS_DEFAULT_REGION"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "AWS_DEFAULT_REGION"
+        value: "{{ item.aws_default_region | default(sa_bb_config.aws_default_region) }}"
+        secured: "no"
+        state: present
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_serviceaccounts' ]
+
+    - name: "Set BB repo pipeline variable ROLE_TO_ASSUME"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.0.name }}"
+        username: "{{ bb_username }}"
+        name: "ROLE_TO_ASSUME_{{ item.1.name }}"
+        value: "arn:aws:iam::{{ lookup('aws_ssm', 'ACCOUNT_ID_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}:role/ServiceAccount/{{ item.1.role_to_assume | default('cicd') }}"
+        secured: "{{ item.1.secured | default('no') }}"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      with_subelements:
+        - "{{ sa_bb_config.repos }}"
+        - "service_account_list"
+        - skip_missing: True
+      tags: [ 'bb_serviceaccounts' ]
+
+    - name: "Set BB repo pipeline variables holding AWS access key ids"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.0.name }}"
+        username: "{{ bb_username }}"
+        name: "ACCESS_KEY_ID_{{ item.1.name }}"
+        value: "{{ lookup('aws_ssm', 'ACCESS_KEY_ID_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        secured: "{{ item.1.secured | default('yes') }}"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      with_subelements:
+        - "{{ sa_bb_config.repos }}"
+        - "service_account_list"
+        - skip_missing: True
+      tags: [ 'rotate_credentials', 'bb_serviceaccounts' ]
+
+    - name: "Set BB repo pipeline variables holding AWS secret keys"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.0.name }}"
+        username: "{{ bb_username }}"
+        name: "SECRET_ACCESS_KEY_{{ item.1.name }}"
+        value: "{{ lookup('aws_ssm', 'SECRET_ACCESS_KEY_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        secured: "{{ item.1.secured | default('yes') }}"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      with_subelements:
+        - "{{ sa_bb_config.repos }}"
+        - "service_account_list"
+        - skip_missing: True
+      tags: [ 'rotate_credentials', 'bb_serviceaccounts' ]
+
+    - name: "Set BB repo pipeline variables holding AWS account ID"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.0.name }}"
+        username: "{{ bb_username }}"
+        name: "ACCOUNT_ID_{{ item.1.name }}"
+        value: "{{ lookup('aws_ssm', 'ACCOUNT_ID_' + item.1.name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        secured: "{{ item.1.secured | default('no') }}"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      with_subelements:
+        - "{{ sa_bb_config.repos }}"
+        - "service_account_list"
+        - skip_missing: True
+      tags: [ 'bb_serviceaccounts' ]
+
+    - name: "Set custom BB repo pipeline variables"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.0.name }}"
+        username: "{{ bb_username }}"
+        name: "{{ item.1.name}}"
+        value: "{{ item.1.value }}"
+        secured: "{{ item.1.secured | default('no') }}"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      with_subelements:
+        - "{{ sa_bb_config.repos }}"
+        - custom_vars
+        - skip_missing: True
+      tags: [ 'bb_customvars' ]
+
+    # The private and public key SSM parameters should be manually added to the SSM parameter store in
+    # the bastion account
+    - name: "Set repo pipeline SSH keypair"
+      community.general.bitbucket_pipeline_key_pair:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        public_key: "{{ lookup('aws_ssm', item.ssh.public_key_ssm_var_name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        private_key: "{{ lookup('aws_ssm', item.ssh.private_key_ssm_var_name, aws_access_key=assumed_role.sts_creds.access_key, aws_secret_key=assumed_role.sts_creds.secret_key, aws_security_token=assumed_role.sts_creds.session_token) }}"
+        state: "{{ item.ssh.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "item.ssh is defined and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+
+    - name: "Set DataDog API Key if defined"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "DD_API_KEY"
+        value: "{{ item.dd_api_key | default(sa_bb_config.datadog.api_key) }}"
+        secured: "yes"
+        state: "present"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(item.dd_api_key is defined or (sa_bb_config.datadog is defined and sa_bb_config.datadog.api_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_datadog' ]
+
+    - name: "Set DataDog APP Key if defined"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "DD_APP_KEY"
+        value: "{{ item.dd_app_key | default(sa_bb_config.datadog.app_key) }}"
+        secured: "yes"
+        state: "present"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(item.dd_app_key is defined or (sa_bb_config.datadog is defined and sa_bb_config.datadog.app_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_datadog' ]
+
+    - name: "Remove DataDog API Key if not defined"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "DD_API_KEY"
+        state: "absent"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(item.dd_api_key is not defined and (sa_bb_config.datadog is not defined or sa_bb_config.datadog.api_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_datadog' ]
+
+    - name: "Remove DataDog APP Key if not defined"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "DD_APP_KEY"
+        state: "absent"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(item.dd_apP_key is not defined and (sa_bb_config.datadog is not defined or sa_bb_config.datadog.app_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      with_items:
+        - "{{ sa_bb_config.repos }}"
+      tags: [ 'bb_datadog' ]
+
