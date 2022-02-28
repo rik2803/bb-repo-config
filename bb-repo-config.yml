@@ -74,8 +74,8 @@
 
     - name: "Assume role for bastion/admin"
       sts_assume_role:
-        role_arn: "arn:aws:iam::{{ sa_bb_config.bastion_account_id }}:role/ServiceAccount/{{ sa_bb_config.sts_role }}"
-        role_session_name: "bastion-{{ sa_bb_config.bastion_account_id }}-{{ sa_bb_config.sts_role }}"
+        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
+        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
       register: assumed_role
       check_mode: no
       tags: [ 'always' ]
@@ -90,8 +90,8 @@
 
     - name: "Set bb_username and bb_workspace facts"
       set_fact:
-        bb_username: "{{ item.bitbucket_username | default(sa_bb_config.bitbucket_username) }}"
-        bb_workspace: "{{ item.bitbucket_username | default(sa_bb_config.bitbucket_username) }}"
+        bb_username: "{{ item.bitbucket_username | default(bitbucket_username) }}"
+        bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
       tags: [ 'always' ]
 
     - name: "Create repo if it does not already exist"
@@ -119,7 +119,7 @@
       when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.project_key is defined"
       register: repo_create_result
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
 
     - name: "Create README.md on master branch if repo was just created (repo created less than 20 seconds ago)"
       uri:
@@ -166,7 +166,7 @@
           - 201
       when: "item.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 20"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
 
     - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 20 seconds ago)"
       uri:
@@ -183,7 +183,7 @@
           "Content-Type": "application/json"
       when: "item.0.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 20"
       with_nested:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
 
     ### Work in progress, call fails with:
@@ -206,7 +206,7 @@
           "Content-Type": "application/json"
       when: "item.item.branching_model is defined or bitbucket.default_branching_model is defined"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
 
     - name: "Set repo permissions"
       uri:
@@ -220,7 +220,7 @@
           - 200
           - 201
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
-      loop: "{{ q('subelements', sa_bb_config.repos, 'group_permissions', {'skip_missing': True}) }}"
+      loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       tags: [ 'bb_permissions' ]
 
     - name: "Always grant the default-reviewers group RW access to the repo"
@@ -237,7 +237,7 @@
       when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
       failed_when: false
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_permissions' ]
 
     - name: "Add default reviewers to the repo"
@@ -251,7 +251,7 @@
           - 200
       when: "item.1.state == 'present'"
       with_nested:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
@@ -267,7 +267,7 @@
           - 404
       when: "item.1.state != 'present'"
       with_nested:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
@@ -291,7 +291,7 @@
           "Content-Type": "application/json"
       when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
 
     - name: "Set BB repo pipeline variable SA_ACCOUNT_LIST"
       community.general.bitbucket_pipeline_variable:
@@ -305,7 +305,7 @@
         client_secret: "{{ client_secret }}"
       when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_serviceaccounts' ]
 
     - name: "Set BB repo pipeline variable AWS_DEFAULT_REGION"
@@ -313,14 +313,14 @@
         repository: "{{ item.name }}"
         username: "{{ bb_username }}"
         name: "AWS_DEFAULT_REGION"
-        value: "{{ item.aws_default_region | default(sa_bb_config.aws_default_region) }}"
+        value: "{{ item.aws_default_region | default(aws_default_region) }}"
         secured: "no"
         state: present
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_serviceaccounts' ]
 
     - name: "Set BB repo pipeline variable ROLE_TO_ASSUME"
@@ -335,7 +335,7 @@
         client_secret: "{{ client_secret }}"
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
       with_subelements:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "service_account_list"
         - skip_missing: True
       tags: [ 'bb_serviceaccounts' ]
@@ -352,7 +352,7 @@
         client_secret: "{{ client_secret }}"
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
       with_subelements:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "service_account_list"
         - skip_missing: True
       tags: [ 'rotate_credentials', 'bb_serviceaccounts' ]
@@ -369,7 +369,7 @@
         client_secret: "{{ client_secret }}"
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
       with_subelements:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "service_account_list"
         - skip_missing: True
       tags: [ 'rotate_credentials', 'bb_serviceaccounts' ]
@@ -386,7 +386,7 @@
         client_secret: "{{ client_secret }}"
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
       with_subelements:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - "service_account_list"
         - skip_missing: True
       tags: [ 'bb_serviceaccounts' ]
@@ -403,7 +403,7 @@
         client_secret: "{{ client_secret }}"
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
       with_subelements:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
         - custom_vars
         - skip_missing: True
       tags: [ 'bb_customvars' ]
@@ -421,21 +421,21 @@
         client_secret: "{{ client_secret }}"
       when: "item.ssh is defined and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
 
     - name: "Set DataDog API Key if defined"
       community.general.bitbucket_pipeline_variable:
         repository: "{{ item.name }}"
         username: "{{ bb_username }}"
         name: "DD_API_KEY"
-        value: "{{ item.dd_api_key | default(sa_bb_config.datadog.api_key) }}"
+        value: "{{ item.dd_api_key | default(datadog.api_key) }}"
         secured: "yes"
         state: "present"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_api_key is defined or (sa_bb_config.datadog is defined and sa_bb_config.datadog.api_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_api_key is defined or (datadog is defined and datadog.api_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_datadog' ]
 
     - name: "Set DataDog APP Key if defined"
@@ -443,14 +443,14 @@
         repository: "{{ item.name }}"
         username: "{{ bb_username }}"
         name: "DD_APP_KEY"
-        value: "{{ item.dd_app_key | default(sa_bb_config.datadog.app_key) }}"
+        value: "{{ item.dd_app_key | default(datadog.app_key) }}"
         secured: "yes"
         state: "present"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_app_key is defined or (sa_bb_config.datadog is defined and sa_bb_config.datadog.app_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_app_key is defined or (datadog is defined and datadog.app_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_datadog' ]
 
     - name: "Remove DataDog API Key if not defined"
@@ -461,9 +461,9 @@
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_api_key is not defined and (sa_bb_config.datadog is not defined or sa_bb_config.datadog.api_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_api_key is not defined and (datadog is not defined or datadog.api_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_datadog' ]
 
     - name: "Remove DataDog APP Key if not defined"
@@ -474,8 +474,8 @@
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_apP_key is not defined and (sa_bb_config.datadog is not defined or sa_bb_config.datadog.app_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_apP_key is not defined and (datadog is not defined or datadog.app_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
       with_items:
-        - "{{ sa_bb_config.repos }}"
+        - "{{ repos }}"
       tags: [ 'bb_datadog' ]
 
