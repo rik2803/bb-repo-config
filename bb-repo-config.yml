@@ -90,8 +90,8 @@
 
     - name: "Set bb_username and bb_workspace facts"
       set_fact:
-        bb_username: "{{ item.bitbucket_username | default(bitbucket_username) }}"
-        bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
+        bb_username: "{{ item.bitbucket_username | default(sa_bb_config.bitbucket_username) }}"
+        bb_workspace: "{{ item.bitbucket_username | default(sa_bb_config.bitbucket_username) }}"
       tags: [ 'always' ]
 
     - name: "Create repo if it does not already exist"
