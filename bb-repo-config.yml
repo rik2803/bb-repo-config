@@ -251,7 +251,7 @@
           - 200
       when: "item.1.state == 'present'"
       with_nested:
-        - "{{ repos }}"
+        - "{{ sa_bb_config.repos }}"
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
@@ -267,7 +267,7 @@
           - 404
       when: "item.1.state != 'present'"
       with_nested:
-        - "{{ repos }}"
+        - "{{ sa_bb_config.repos }}"
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
@@ -291,7 +291,7 @@
           "Content-Type": "application/json"
       when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined"
       with_items:
-        - "{{ repos }}"
+        - "{{ sa_bb_config.repos }}"
 
     - name: "Set BB repo pipeline variable SA_ACCOUNT_LIST"
       community.general.bitbucket_pipeline_variable:
