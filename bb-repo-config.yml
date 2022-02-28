@@ -57,7 +57,7 @@
 
     - name: "Get list of all repo config files to include in sa_bb_config.yml"
       set_fact:
-        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/BitbucketRepoConfigs/include; find . -name {{ limit_bb_repo_regex }}').split() }}"
+        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name {{ limit_bb_repo_regex }}').split() }}"
       tags: [ 'always' ]
 
     - name: "Process the repo bb config template"
