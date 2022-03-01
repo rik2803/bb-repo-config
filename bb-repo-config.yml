@@ -111,10 +111,6 @@
       with_items:
         - "{{ repos }}"
 
-    - name: "Debug: repo_create_result"
-      debug:
-        var: "repo_create_result"
-
     - name: "Create README.md on master branch if repo was just created (repo created less than 60 seconds ago)"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.item.name }}/src
