@@ -111,7 +111,7 @@
       with_items:
         - "{{ repos }}"
 
-    - name: "Create README.md on master branch if repo was just created (repo created less than 20 seconds ago)"
+    - name: "Create README.md on master branch if repo was just created (repo created less than 60 seconds ago)"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.item.name }}/src
         method: POST
@@ -154,11 +154,11 @@
             * Other community or team contact
         status_code:
           - 201
-      when: "item.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 20"
+      when: "item.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60"
       with_items:
         - "{{ repos }}"
 
-    - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 20 seconds ago)"
+    - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/branch-restrictions
         method: POST
@@ -171,7 +171,7 @@
           - 201
         headers:
           "Content-Type": "application/json"
-      when: "item.0.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 20"
+      when: "item.0.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60"
       with_nested:
         - "{{ repos }}"
         - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
@@ -316,7 +316,7 @@
     - name: "Set BB repo pipeline variable ROLE_TO_ASSUME"
       community.general.bitbucket_pipeline_variable:
         repository: "{{ item.0.name }}"
-        username: "{{ bb_username }}"
+        workspace: "{{ bb_username }}"
         name: "ROLE_TO_ASSUME_{{ item.1.name }}"
         value: "arn:aws:iam::{{ lookup('aws_ssm', 'ACCOUNT_ID_' + item.1.name, aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}:role/ServiceAccount/{{ item.1.role_to_assume | default('cicd') }}"
         secured: "{{ item.1.secured | default('no') }}"
