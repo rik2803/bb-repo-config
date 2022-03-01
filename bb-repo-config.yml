@@ -31,8 +31,6 @@
               - "secret.rc == 0"
               - "region.rc == 0"
 
-  vars:
-
   tasks:
     - name: "Set config_basedir fact"
       set_fact:
@@ -71,20 +69,13 @@
         file: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
       tags: [ 'always' ]
 
-#    - name: "Assume role for bastion/admin"
-#      sts_assume_role:
-#        role_arn: "arn:aws:iam::{{ bastion_account_id }}:role/ServiceAccount/{{ sts_role }}"
-#        role_session_name: "bastion-{{ bastion_account_id }}-{{ sts_role }}"
-#      register: assumed_role
-#      check_mode: no
-#      tags: [ 'always' ]
-
     - name: "Get client_id, client_secret, user and api token for BB authentication from AWS SSM in the Bastion account"
       set_fact:
         client_id: "{{ lookup('aws_ssm', 'bb_client_id', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
         client_secret: "{{ lookup('aws_ssm', 'bb_client_secret', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
         bb_user: "{{ lookup('aws_ssm', 'bb_user', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
         bb_apitoken: "{{ lookup('aws_ssm', 'bb_apitoken', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
+        snyk_auth_token: "{{ lookup('aws_ssm', 'snyk_auth_token', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) | default('NA') }}"
       tags: [ 'always' ]
 
     - name: "Set bb_username and bb_workspace facts"
@@ -354,7 +345,7 @@
         - "{{ repos }}"
         - "service_account_list"
         - skip_missing: True
-      tags: [ 'rotate_credentials', 'bb_serviceaccounts' ]
+      tags: [ 'bb_rotate_credentials', 'bb_serviceaccounts' ]
 
     - name: "Set BB repo pipeline variables holding AWS secret keys"
       community.general.bitbucket_pipeline_variable:
@@ -371,7 +362,7 @@
         - "{{ repos }}"
         - "service_account_list"
         - skip_missing: True
-      tags: [ 'rotate_credentials', 'bb_serviceaccounts' ]
+      tags: [ 'bb_rotate_credentials', 'bb_serviceaccounts' ]
 
     - name: "Set BB repo pipeline variables holding AWS account ID"
       community.general.bitbucket_pipeline_variable:
@@ -421,6 +412,35 @@
       when: "item.ssh is defined and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
       with_items:
         - "{{ repos }}"
+      tags: [ 'bb_ssh_keypair' ]
+
+    - name: "Set Snyk Auth Token if defined"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "SNYK_TOKEN"
+        value: "{{ snyk_auth_token }}"
+        secured: "yes"
+        state: "present"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "snyk_auth_token != 'NA'"
+      with_items:
+        - "{{ repos }}"
+      tags: [ 'bb_snyk' ]
+
+    - name: "Remove Snyk Auth Token if not defined"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        username: "{{ bb_username }}"
+        name: "SNYK_TOKEN"
+        state: "absent"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "snyk_auth_token == 'NA'"
+      with_items:
+        - "{{ repos }}"
+      tags: [ 'bb_snyk' ]
 
     - name: "Set DataDog API Key if defined"
       community.general.bitbucket_pipeline_variable:
