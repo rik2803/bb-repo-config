@@ -156,7 +156,7 @@
           - 201
       when: "item.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60"
       with_items:
-        - "{{ repos }}"
+        - "{{ repo_create_result.results }}"
 
     - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
       uri:
