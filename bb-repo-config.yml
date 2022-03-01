@@ -111,6 +111,10 @@
       with_items:
         - "{{ repos }}"
 
+    - name: "Debug: repo_create_result"
+      debug:
+        var: "repo_create_result"
+
     - name: "Create README.md on master branch if repo was just created (repo created less than 60 seconds ago)"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.item.name }}/src
@@ -154,7 +158,7 @@
             * Other community or team contact
         status_code:
           - 201
-      when: "item.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60"
+      when: "item.json.created_on is defined and ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)"
       with_items:
         - "{{ repo_create_result.results }}"
 
@@ -171,7 +175,7 @@
           - 201
         headers:
           "Content-Type": "application/json"
-      when: "item.0.json.created_on is defined and (ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60"
+      when: "item.0.json.created_on is defined and ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)"
       with_nested:
         - "{{ repos }}"
         - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
