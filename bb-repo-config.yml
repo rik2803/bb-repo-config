@@ -245,7 +245,7 @@
         - "{{ item.item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
       tags: [ 'bb_permissions' ]
 
-    - name: "Delete default reviewers to the repo"
+    - name: "Delete default reviewers from the repo"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/default-reviewers/{{ item.1.uuid }}
         method: DELETE

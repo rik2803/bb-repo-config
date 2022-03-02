@@ -1,0 +1,167 @@
+---
+- name: "Setup BB Pipeline variables"
+  hosts: localhost
+  gather_facts: true
+
+  pre_tasks:
+    - name: Block for pre_tasks
+      block:
+        - name: Test AWS_REGION
+          shell: "[[ -n $AWS_REGION ]]"
+          register: region
+          failed_when: false
+          changed_when: false
+          check_mode: no
+        - name: Test AWS_SECRET_ACCESS_KEY
+          shell: "[[ -n $AWS_SECRET_ACCESS_KEY ]]"
+          register: secret
+          failed_when: false
+          changed_when: false
+          check_mode: no
+        - name: Test AWS_ACCESS_KEY_ID
+          shell: "[[ -n $AWS_ACCESS_KEY_ID ]]"
+          register: key
+          failed_when: false
+          changed_when: false
+          check_mode: no
+        - name: Do assertions on configfile and AWS credential envvars
+          assert:
+            that:
+              - "key.rc == 0"
+              - "secret.rc == 0"
+              - "region.rc == 0"
+
+  tasks:
+    - name: "Set config_basedir fact"
+      set_fact:
+        config_basedir: "{{ config_basedir | default('/config') }}"
+
+    - name: "Get list of all repo config files to include in sa_bb_config.yml"
+      set_fact:
+        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name \\*\\.\\*y\\*ml').split() }}"
+      tags: [ 'always' ]
+
+    - name: "Set limit_bb_repo_regex if limit_bb_repo is defined"
+      set_fact:
+        limit_bb_repo_regex: "{{ limit_bb_repo }}\\*.\\*y\\*ml"
+      when: "limit_bb_repo is defined"
+      tags: [ 'always' ]
+
+    - name: "Set limit_bb_repo_regex if limit_bb_repo is not defined"
+      set_fact:
+        limit_bb_repo_regex: "\\*\\.\\*y\\*ml"
+      when: "limit_bb_repo is not defined"
+      tags: [ 'always' ]
+
+    - name: "Get list of all repo config files to include in sa_bb_config.yml"
+      set_fact:
+        bb_repo_config_include_files: "{{ lookup('pipe', 'cd ' + config_basedir + '/include; find . -name {{ limit_bb_repo_regex }}').split() }}"
+      tags: [ 'always' ]
+
+    - name: "Process the repo bb config template"
+      template:
+        src: "{{ config_basedir }}/sa_bb_config.yml"
+        dest: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
+      tags: [ 'always' ]
+
+    - name: "Read repo bb config"
+      include_vars:
+        file: "{{ generated_files_dir | default('generated-files') }}/bb-repo-config.yml"
+      tags: [ 'always' ]
+
+    - name: "Get client_id, client_secret, user and api token for BB authentication from AWS SSM in the Bastion account"
+      set_fact:
+        client_id: "{{ lookup('aws_ssm', 'bb_client_id', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
+        client_secret: "{{ lookup('aws_ssm', 'bb_client_secret', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
+        bb_user: "{{ lookup('aws_ssm', 'bb_user', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
+        bb_apitoken: "{{ lookup('aws_ssm', 'bb_apitoken', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
+        snyk_auth_token: "{{ lookup('aws_ssm', 'snyk_auth_token', aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) | default('NA') }}"
+      tags: [ 'always' ]
+
+    - name: "Set bb_username and bb_workspace facts"
+      set_fact:
+        bb_username: "{{ item.bitbucket_username | default(bitbucket_username) }}"
+        bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
+      tags: [ 'always' ]
+
+    - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
+        method: POST
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.1 | to_json }}"
+        body_format: "json"
+        status_code:
+          - 201
+        headers:
+          "Content-Type": "application/json"
+      with_nested:
+        - "{{ repos }}"
+        - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
+
+    - name: "Set branching model on the repo"
+      uri:
+        url: "https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.name }}/branching-model/settings"
+        method: PUT
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.branching_model | default(bitbucket.default_branching_model) | default([]) | to_json }}"
+        body_format: "json"
+        status_code:
+          - 200
+        headers:
+          "Content-Type": "application/json"
+      when: "item.item.branching_model is defined or bitbucket.default_branching_model is defined"
+      with_items:
+        - "{{ repos }}"
+
+    - name: "Always grant the default-reviewers group RW access to the repo"
+      uri:
+        url: "https://api.bitbucket.org/1.0/group-privileges/{{ bb_workspace }}/{{ item.name }}/{{ bb_workspace }}/default-reviewers"
+        method: PUT
+        user: "{{  bb_user }}"
+        password: "{{  bb_apitoken }}"
+        force_basic_auth: yes
+        body: "write"
+        status_code:
+          - 200
+          - 201
+      when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
+      failed_when: false
+      with_items:
+        - "{{ repos }}"
+      tags: [ 'bb_permissions' ]
+
+    - name: "Add default reviewers to the repo"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/default-reviewers/{{ item.1.uuid }}
+        method: PUT
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        status_code:
+          - 200
+      when: "item.1.state == 'present'"
+      with_nested:
+        - "{{ repos }}"
+        - "{{ item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
+      tags: [ 'bb_permissions' ]
+
+    - name: "Delete default reviewers from the repo"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/default-reviewers/{{ item.1.uuid }}
+        method: DELETE
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        status_code:
+          - 204
+          - 404
+      when: "item.1.state != 'present'"
+      with_nested:
+        - "{{ repos }}"
+        - "{{ item.default_reviewers | default(bitbucket.default_reviewers) | default([]) }}"
+      tags: [ 'bb_permissions' ]
