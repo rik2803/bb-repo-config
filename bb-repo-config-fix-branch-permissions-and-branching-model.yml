@@ -86,9 +86,10 @@
 
     - name: "Debug message"
       debug:
-        var: item.branch_restrictions
-      with_items:
+        var: item.1
+      with_nested:
         - "{{ repos }}"
+        - "{{ item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
       failed_when: false
 
     - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
