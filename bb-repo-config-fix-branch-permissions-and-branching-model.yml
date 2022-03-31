@@ -84,6 +84,20 @@
         bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
       tags: [ 'always' ]
 
+    - name: "Debug One"
+      debug:
+        msg: "{{ item.1 }}"
+      with_nested:
+        - "{{ repos }}"
+        - "{{ bitbucket.default_branch_restrictions | default([]) }}"
+
+    - name: "Debug Two"
+      debug:
+        msg: "{{ item.1 }}"
+      with_nested:
+        - "{{ repos }}"
+        - branch_restrictions
+
     - name: "Set default branch restrictions on the repo"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
