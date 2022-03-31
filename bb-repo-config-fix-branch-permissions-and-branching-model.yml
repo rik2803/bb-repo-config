@@ -99,7 +99,7 @@
           "Content-Type": "application/json"
       with_nested:
         - "{{ repos }}"
-        - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
+        - "{{ item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
 
     - name: "Set branching model on the repo"
       uri:
@@ -114,7 +114,7 @@
           - 200
         headers:
           "Content-Type": "application/json"
-      when: "item.item.branching_model is defined or bitbucket.default_branching_model is defined"
+      when: "item.branching_model is defined or bitbucket.default_branching_model is defined"
       with_items:
         - "{{ repos }}"
 
