@@ -86,7 +86,7 @@
 
     - name: "Debug message"
       debug:
-        var: item.1
+        msg: "{{ item.0 }}: {{ item.1 }}"
       with_nested:
         - "{{ repos }}"
         - "{{ item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
