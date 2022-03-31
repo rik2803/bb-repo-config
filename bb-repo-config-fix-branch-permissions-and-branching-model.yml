@@ -84,15 +84,7 @@
         bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
       tags: [ 'always' ]
 
-    - name: "Debug message"
-      debug:
-        msg: "{{ item.0.name }}: {{ item.1 }}"
-      with_nested:
-        - "{{ repos }}"
-        - "{{ item.0.branch_restrictions }}"
-      failed_when: false
-
-    - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
+    - name: "Set default branch restrictions on the repo"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
         method: POST
@@ -107,7 +99,26 @@
           "Content-Type": "application/json"
       with_nested:
         - "{{ repos }}"
-        - "{{ item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
+        - "{{ bitbucket.default_branch_restrictions | default([]) }}"
+      when: "item.0.branch_restrictions is not defined"
+
+    - name: "Set repo override branch restrictions on the repo"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
+        method: POST
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.1 | to_json }}"
+        body_format: "json"
+        status_code:
+          - 201
+        headers:
+          "Content-Type": "application/json"
+      with_subelements:
+        - "{{ repos }}"
+        - "branch_restrictions"
+      when: "item.0.branch_restrictions is defined"
 
     - name: "Set branching model on the repo"
       uri:
