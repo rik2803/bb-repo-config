@@ -132,7 +132,6 @@
       with_subelements:
         - "{{ repos }}"
         - branch_restrictions
-      when: "item.0.branch_restrictions is defined"
 
     - name: "Set branching model on the repo"
       uri:
