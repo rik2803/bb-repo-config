@@ -84,25 +84,25 @@
         bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
       tags: [ 'always' ]
 
-    - name: "Debug One"
-      debug:
-        msg: "{{ item }}"
-      with_nested:
-        - "{{ repos }}"
-        - "{{ bitbucket.default_branch_restrictions | default([]) }}"
-      when: >
-        item is iterable and
-        item.0.branch_restrictions is not defined
-
-    - name: "Debug Two"
-      debug:
-        msg: "{{ item }}"
-      with_subelements:
-        - "{{ repos }}"
-        - branch_restrictions
-      when: >
-        item is iterable and
-        item.0.branch_restrictions is defined
+#    - name: "Debug One"
+#      debug:
+#        msg: "{{ item }}"
+#      with_nested:
+#        - "{{ repos }}"
+#        - "{{ bitbucket.default_branch_restrictions | default([]) }}"
+#      when: >
+#        item is iterable and
+#        item.0.branch_restrictions is not defined
+#
+#    - name: "Debug Two"
+#      debug:
+#        msg: "{{ item }}"
+#      with_subelements:
+#        - "{{ repos }}"
+#        - branch_restrictions
+#      when: >
+#        item is iterable and
+#        item.0.branch_restrictions is defined
 
     - name: "Set default branch restrictions on the repo"
       uri:
@@ -120,24 +120,25 @@
       with_nested:
         - "{{ repos }}"
         - "{{ bitbucket.default_branch_restrictions | default([]) }}"
-      when: "item[0].branch_restrictions is not defined"
-
-    - name: "Set repo override branch restrictions on the repo"
-      uri:
-        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
-        method: POST
-        user: "{{ bb_user }}"
-        password: "{{ bb_apitoken }}"
-        force_basic_auth: yes
-        body: "{{ item.1 | to_json }}"
-        body_format: "json"
-        status_code:
-          - 201
-        headers:
-          "Content-Type": "application/json"
-      with_subelements:
-        - "{{ repos }}"
-        - branch_restrictions
+#      when: "item[0].branch_restrictions is not defined"
+#
+#    - name: "Set repo override branch restrictions on the repo"
+#      uri:
+#        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
+#        method: POST
+#        user: "{{ bb_user }}"
+#        password: "{{ bb_apitoken }}"
+#        force_basic_auth: yes
+#        body: "{{ item.1 | to_json }}"
+#        body_format: "json"
+#        status_code:
+#          - 201
+#        headers:
+#          "Content-Type": "application/json"
+#      with_subelements:
+#        - "{{ repos }}"
+#        - branch_restrictions
+#      when: "item[0].branch_restrictions is defined"
 
     - name: "Set branching model on the repo"
       uri:
