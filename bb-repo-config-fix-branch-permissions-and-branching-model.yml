@@ -114,7 +114,7 @@
       with_nested:
         - "{{ repos }}"
         - "{{ bitbucket.default_branch_restrictions | default([]) }}"
-      when: "item.0.branch_restrictions is not defined"
+      when: "item[0].branch_restrictions is not defined"
 
     - name: "Set repo override branch restrictions on the repo"
       uri:
