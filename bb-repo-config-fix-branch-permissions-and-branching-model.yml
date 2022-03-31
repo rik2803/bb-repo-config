@@ -94,7 +94,7 @@
     - name: "Debug Two"
       debug:
         msg: "{{ item.1 }}"
-      with_nested:
+      with_subelements:
         - "{{ repos }}"
         - branch_restrictions
 
