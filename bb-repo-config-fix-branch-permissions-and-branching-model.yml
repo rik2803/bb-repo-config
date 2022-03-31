@@ -84,6 +84,13 @@
         bb_workspace: "{{ item.bitbucket_username | default(bitbucket_username) }}"
       tags: [ 'always' ]
 
+    - name: "Debug message"
+      debug:
+        var: item.branch_restrictions
+      with_items:
+        - "{{ repos }}"
+      failed_when: false
+
     - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.name }}/branch-restrictions
