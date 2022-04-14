@@ -177,7 +177,7 @@
 
     - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
       uri:
-        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/branch-restrictions
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.item.name }}/branch-restrictions
         method: POST
         user: "{{ bb_user }}"
         password: "{{ bb_apitoken }}"
