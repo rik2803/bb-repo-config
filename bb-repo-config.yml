@@ -184,7 +184,7 @@
       when: "item.0.json.created_on is defined and ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)"
       with_nested:
         - "{{ repo_create_result.results }}"
-        - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
+        - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) }}"
 
     ### Work in progress, call fails with:
     #      Cannot update repository branching model when inherited project settings is on
