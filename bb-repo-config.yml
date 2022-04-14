@@ -168,7 +168,11 @@
       with_items:
         - "{{ repo_create_result.results }}"
 
-    - name: "Set branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
+# DON TO SOLVE THE OVERRIDE ISSUE:
+#   - one loop (nested) for repo's without overrides
+#   - one loop (subelements) for repo's with overrides
+
+    - name: "Set GLOBAL branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
       uri:
         url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/branch-restrictions
         method: POST
@@ -181,10 +185,33 @@
           - 201
         headers:
           "Content-Type": "application/json"
-      when: "item.0.json.created_on is defined and ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)"
-      with_nested:
-        - "{{ repo_create_result.results }}"
-        - "{{ item.item.branch_restrictions | default(bitbucket.default_branch_restrictions) | default([]) }}"
+      when: >
+        item.0.json.created_on is defined and 
+        ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60) and
+        item.0.item.branch_restrictions is not defined
+      loop: "{{ repo_create_result.results | product(bitbucket.default_branch_restrictions | default([])) }}"
+      loop_control:
+        label: "Repo: {{ item.0.item.name }} - Restriction: {{ item.1.pattern | default('NO_PATTERN') }} - {{ item.1.kind | default('NO_KIND') }}"
+
+    - name: "Set CUSTOM branch restrictions on the repo if it did not already exist (repo created less than 60 seconds ago)"
+      uri:
+        url: https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.0.item.name }}/branch-restrictions
+        method: POST
+        user: "{{ bb_user }}"
+        password: "{{ bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.1 | to_json }}"
+        body_format: "json"
+        status_code:
+          - 201
+        headers:
+          "Content-Type": "application/json"
+      when: >
+        item.0.json.created_on is defined and 
+        ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.0.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)
+      loop: "{{ q('subelements', repo_create_result.results, 'item.branch_restrictions', {'skip_missing': True}) }}"
+      loop_control:
+        label: "Repo: {{ item.0.item.name }} - Restriction: {{ item.1.pattern | default('NO_PATTERN') }} - {{ item.1.kind | default('NO_KIND') }}"
 
     ### Work in progress, call fails with:
     #      Cannot update repository branching model when inherited project settings is on
