@@ -165,6 +165,7 @@
             * Repo owner or admin
             * Other community or team contact
         status_code:
+          - 200
           - 201
       when: "item.json.created_on is defined and ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)"
       loop: "{{ repo_create_result.results }}"
