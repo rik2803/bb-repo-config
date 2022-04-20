@@ -91,7 +91,7 @@
           - "item.project_key is defined"
         fail_msg: "Required property project_key is not set for repo {{ item.name }}. Add the missing property and try again."
       when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Checking project key for repo {{ item.name }}"
 
@@ -119,7 +119,7 @@
           "Content-Type": "application/json"
       when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.project_key is defined"
       register: repo_create_result
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Creating repo {{ item.name }}"
 
@@ -167,7 +167,7 @@
         status_code:
           - 201
       when: "item.json.created_on is defined and ((ansible_date_time.iso8601[:19] | to_datetime('%Y-%m-%dT%H:%M:%S') - item.json.created_on[:19] | to_datetime('%Y-%m-%dT%H:%M:%S')).total_seconds() < 60)"
-      loop: "{{ repo_create_result.results | flatten(levels=1) }}"
+      loop: "{{ repo_create_result.results }}"
       loop_control:
         label: "Creating README.md in repo {{ item.0.item.name }}"
 
@@ -235,7 +235,7 @@
         headers:
           "Content-Type": "application/json"
       when: "item.branching_model is defined or bitbucket.default_branching_model is defined"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set branching model on repo {{ item.name }}"
 
@@ -269,7 +269,7 @@
           - 201
       when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
       failed_when: false
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Grant default reviewers write access to {{ item.name }}"
       tags: [ 'bb_permissions' ]
@@ -359,7 +359,7 @@
         headers:
           "Content-Type": "application/json"
       when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Enable pipeline for {{ item.name }}"
 
@@ -374,7 +374,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set repo variable SA_ACCOUNT_LIST for repo {{ item.name }}"
       tags: [ 'bb_serviceaccounts' ]
@@ -390,7 +390,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set repo variable AWS_DEFAULT_REGION for repo {{ item.name }}"
       tags: [ 'bb_serviceaccounts' ]
@@ -487,7 +487,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "item.ssh is defined and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set repo pipeline SSH keypair for repo {{ item.name }}"
       tags: [ 'bb_ssh_keypair' ]
@@ -503,7 +503,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "snyk_auth_token != 'NA'"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set repo pipeline Snyk authentication token for repo {{ item.name }}"
       tags: [ 'bb_snyk' ]
@@ -517,7 +517,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "snyk_auth_token == 'NA'"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Remove repo pipeline Snyk authentication token from repo {{ item.name }}"
       tags: [ 'bb_snyk' ]
@@ -533,7 +533,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(item.dd_api_key is defined or (datadog is defined and datadog.api_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set repo DataDog API key for repo {{ item.name }}"
       tags: [ 'bb_datadog' ]
@@ -549,7 +549,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(item.dd_app_key is defined or (datadog is defined and datadog.app_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Set repo DataDog APP key for repo {{ item.name }}"
       tags: [ 'bb_datadog' ]
@@ -563,7 +563,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(item.dd_api_key is not defined and (datadog is not defined or datadog.api_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Remove repo DataDog API key from repo {{ item.name }}"
       tags: [ 'bb_datadog' ]
@@ -577,7 +577,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when: "(item.dd_app_key is not defined and (datadog is not defined or datadog.app_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
-      loop: "{{ repos | flatten(levels=1) }}"
+      loop: "{{ repos }}"
       loop_control:
         label: "Remove repo DataDog APP key from repo {{ item.name }}"
       tags: [ 'bb_datadog' ]
