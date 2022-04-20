@@ -287,7 +287,7 @@
       when: >
         item.1.state == 'present' and
         item.0.reviewers id not defined
-      loop: "{{ repos | product(bitbucket.default_reviewers | default([]) }}"
+      loop: "{{ repos | product(bitbucket.default_reviewers | default([])) }}"
       loop_control:
         label: "Add {{ item.1.name | default('NO_NAME') }} as default reviewer to repo {{ item.0.name }}"
       tags: [ 'bb_permissions' ]
@@ -320,7 +320,7 @@
       when: >
         item.1.state != 'present' and
         item.0.reviewers id not defined
-      loop: "{{ repos | product(bitbucket.default_reviewers | default([]) }}"
+      loop: "{{ repos | product(bitbucket.default_reviewers | default([])) }}"
       loop_control:
         label: "Add {{ item.1.name | default('NO_NAME') }} as default reviewer to repo {{ item.0.name }}"
       tags: [ 'bb_permissions' ]
