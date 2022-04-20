@@ -98,7 +98,7 @@
         headers:
           "Content-Type": "application/json"
       when: >
-        item.0.item.branch_restrictions is not defined
+        item.0.branch_restrictions is not defined
       loop: "{{ repos | product(bitbucket.default_branch_restrictions | default([])) }}"
       loop_control:
         label: "Repo: {{ item.0.name }} - Restriction: {{ item.1.pattern | default('NO_PATTERN') }} - {{ item.1.kind | default('NO_KIND') }}"
