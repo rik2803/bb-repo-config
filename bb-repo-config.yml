@@ -473,7 +473,7 @@
       when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
       loop: "{{ q('subelements', repos, 'custom_vars', {'skip_missing': True}) }}"
       loop_control:
-        label: "Set custom repo variable {{ item.1.name }} for repo {{ item.0.name }}"
+        label: "Make custom repo variable {{ item.1.name }} {{ item.1.state | default('present') }} for repo {{ item.0.name }}"
       tags: [ 'bb_customvars' ]
 
     # The private and public key SSM parameters should be manually added to the SSM parameter store in
