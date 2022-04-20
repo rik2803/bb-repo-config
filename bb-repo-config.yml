@@ -216,11 +216,6 @@
       loop_control:
         label: "Repo: {{ item.0.item.name }} - Restriction: {{ item.1.pattern | default('NO_PATTERN') }} - {{ item.1.kind | default('NO_KIND') }}"
 
-    ### Work in progress, call fails with:
-    #      Cannot update repository branching model when inherited project settings is on
-    #   That setting is enabled by default and cannot be disabled with an API call. A feature request was logged:
-    #      https://jira.atlassian.com/browse/BCLOUD-21663
-    #   This was fixed by BB on 20220212
     - name: "Set branching model on the repo"
       uri:
         url: "https://api.bitbucket.org/2.0/repositories/{{ bb_workspace }}/{{ item.name }}/branching-model/settings"
