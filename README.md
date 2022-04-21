@@ -161,7 +161,8 @@ Following tags are supported:
 | ** `<m>.state`               | `present` (default) or `absent`, create or remove the BB pipeline variables for this account       |
 | ** `<m>.secure`              | Is this a secure variable (`yes`) (will not show in BB) or not (`no` - default)                    |
 | `branch_restrictions`        | List of branch restrictions, see BB API docs for the syntax (and should be converted to YAML)      |
-| `branching_model`            | (WIP) Branching model to apply, see BB API docs for the syntax (and should be converted to YAML)   |
+| `branching_model`            | Branching model to apply, see BB API docs for the syntax (and should be converted to YAML)         |
+| `reviewers`                  | Default reviewers to add if different from the global default reviewers in `sa_bb_config.yml`      |
 | `language`                   | Optional, defaults to `java` (`java`, `javascript`, `nodejs`, `typescript`, `shell`, `python`, ... |
 
 ### What it does
@@ -190,7 +191,8 @@ group members should be able to review repo PRs.
 The toplevel property `bitbucket.default_reviewers` is also required, as they are configured as the default
 reviewers for a repository. When you want to remove a user from the default reviewers list, change the state
 to `absent` rather than removing it from the list entirely. In the latter case, the user will remain in the
-default reviewers list when updating the repo config.
+default reviewers list when updating the repo config. Can be overridden by specifying the `reviewers` property
+in the repo definition.
 
 ```bash
 bitbucket:
