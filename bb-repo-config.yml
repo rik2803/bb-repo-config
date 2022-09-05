@@ -90,7 +90,7 @@
         that:
           - "item.project_key is defined"
         fail_msg: "Required property project_key is not set for repo {{ item.name }}. Add the missing property and try again."
-      when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.name == limit_bb_repo"
       loop: "{{ repos }}"
       loop_control:
         label: "Checking project key for repo {{ item.name }}"
@@ -117,7 +117,7 @@
           - 201
         headers:
           "Content-Type": "application/json"
-      when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.project_key is defined"
+      when: "(limit_bb_repo is not defined or item.name == limit_bb_repo) and item.project_key is defined"
       register: repo_create_result
       loop: "{{ repos }}"
       loop_control:
@@ -245,7 +245,7 @@
         status_code:
           - 200
           - 201
-      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
       loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       loop_control:
         label: "Grant group {{ item.1.group_slug }} {{ item.1.privilege }} access on repository {{ item.0.name }}"
@@ -262,7 +262,7 @@
         status_code:
           - 200
           - 201
-      when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.name == limit_bb_repo"
       failed_when: false
       loop: "{{ repos }}"
       loop_control:
@@ -316,7 +316,7 @@
         item.0.reviewers is not defined
       loop: "{{ repos | product(bitbucket.default_reviewers | default([])) }}"
       loop_control:
-        label: "Add {{ item.1.name | default('NO_NAME') }} as default reviewer to repo {{ item.0.name }}"
+        label: "Remove {{ item.1.name | default('NO_NAME') }} as default reviewer to repo {{ item.0.name }}"
       tags: [ 'bb_permissions' ]
 
     - name: "Remove CUSTOM default reviewers from the repo"
@@ -368,7 +368,7 @@
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
+      when: "(limit_bb_repo is not defined or item.name == limit_bb_repo) and item.service_account_list is defined"
       loop: "{{ repos }}"
       loop_control:
         label: "Set repo variable SA_ACCOUNT_LIST for repo {{ item.name }}"
@@ -384,7 +384,7 @@
         state: present
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)) and item.service_account_list is defined"
+      when: "(limit_bb_repo is not defined or item.name == limit_bb_repo) and item.service_account_list is defined"
       loop: "{{ repos }}"
       loop_control:
         label: "Set repo variable AWS_DEFAULT_REGION for repo {{ item.name }}"
@@ -400,7 +400,7 @@
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
       loop: "{{ q('subelements', repos, 'service_account_list', {'skip_missing': True}) }}"
       loop_control:
         label: "Set repo variable ROLE_TO_ASSUME_{{ item.1.name }} for repo {{ item.0.name }}"
@@ -416,7 +416,7 @@
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
       loop: "{{ q('subelements', repos, 'service_account_list', {'skip_missing': True}) }}"
       loop_control:
         label: "Set repo variable ACCESS_KEY_ID_{{ item.1.name }} for repo {{ item.0.name }}"
@@ -432,7 +432,7 @@
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
       loop: "{{ q('subelements', repos, 'service_account_list', {'skip_missing': True}) }}"
       loop_control:
         label: "Set repo variable SECRET_ACCESS_KEY_{{ item.1.name }} for repo {{ item.0.name }}"
@@ -448,7 +448,7 @@
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
       loop: "{{ q('subelements', repos, 'service_account_list', {'skip_missing': True}) }}"
       loop_control:
         label: "Set repo variable ACCOUNT_ID_{{ item.1.name }} for repo {{ item.0.name }}"
@@ -465,7 +465,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when:
-        - "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+        - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
         - "'SSM::' not in item.1.value"
       loop: "{{ q('subelements', repos, 'custom_vars', {'skip_missing': True}) }}"
       loop_control:
@@ -483,7 +483,7 @@
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
       when:
-        - "limit_bb_repo is not defined or item.0.name.startswith(limit_bb_repo)"
+        - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
         - "item.1.value.startswith('SSM::')"
       loop: "{{ q('subelements', repos, 'custom_vars', {'skip_missing': True}) }}"
       loop_control:
@@ -501,7 +501,7 @@
         state: "{{ item.ssh.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "item.ssh is defined and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "item.ssh is defined and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Set repo pipeline SSH keypair for repo {{ item.name }}"
@@ -547,7 +547,7 @@
         state: "present"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_api_key is defined or (datadog is defined and datadog.api_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_api_key is defined or (datadog is defined and datadog.api_key is defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Set repo DataDog API key for repo {{ item.name }}"
@@ -563,7 +563,7 @@
         state: "present"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_app_key is defined or (datadog is defined and datadog.app_key is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_app_key is defined or (datadog is defined and datadog.app_key is defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Set repo DataDog APP key for repo {{ item.name }}"
@@ -577,7 +577,7 @@
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_api_key is not defined and (datadog is not defined or datadog.api_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_api_key is not defined and (datadog is not defined or datadog.api_key is not defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Remove repo DataDog API key from repo {{ item.name }}"
@@ -591,7 +591,7 @@
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_app_key is not defined and (datadog is not defined or datadog.app_key is not defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_app_key is not defined and (datadog is not defined or datadog.app_key is not defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Remove repo DataDog APP key from repo {{ item.name }}"
