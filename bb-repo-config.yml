@@ -478,7 +478,7 @@
         workspace: "{{ bb_username }}"
         name: "{{ item.1.name}}"
         value: "{{ lookup('aws_ssm', item.1.value|regex_replace('^(.*)SSM::(.*)$', '\\1\\2'), aws_access_key=lookup('env', 'AWS_ACCESS_KEY_ID'), aws_secret_key=lookup('env', 'AWS_SECRET_ACCESS_KEY'), aws_security_token=lookup('env', 'AWS_SESSION_TOKEN')) }}"
-        secured: "{{ item.1.secured | default('no') }}"
+        secured: "yes"
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
