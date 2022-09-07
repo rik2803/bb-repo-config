@@ -149,7 +149,7 @@
         status_code:
           - 200
           - 201
-      when: "limit_bb_repo is not defined or item.name.startswith(limit_bb_repo)"
+      when: "limit_bb_repo is not defined or item.name == limit_bb_repo"
       failed_when: false
       loop: "{{ repos }}"
       loop_control:
