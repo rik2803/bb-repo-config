@@ -353,7 +353,7 @@
           - 201
         headers:
           "Content-Type": "application/json"
-      when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo)) and item.service_account_list is defined"
+      when: "(limit_bb_repo is not defined or item.name is search(limit_bb_repo))"
       loop: "{{ repos }}"
       loop_control:
         label: "Enable pipeline for {{ item.name }}"
