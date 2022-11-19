@@ -575,7 +575,7 @@
         workspace: "{{ bb_username }}"
         name: "DD_API_HOST"
         value: "{{ item.dd_api_host | default(datadog.api_host) }}"
-        secured: "yes"
+        secured: "no"
         state: "present"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
@@ -613,13 +613,13 @@
         label: "Remove repo DataDog APP key from repo {{ item.name }}"
       tags: [ 'bb_datadog' ]
 
-    - name: "Remove DataDog API host not if defined"
+    - name: "Remove DataDog API host if not defined"
       community.general.bitbucket_pipeline_variable:
         repository: "{{ item.name }}"
         workspace: "{{ bb_username }}"
         name: "DD_API_HOST"
         value: "{{ item.dd_api_host | default(datadog.api_host) }}"
-        secured: "yes"
+        secured: "no"
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
