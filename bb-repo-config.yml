@@ -613,7 +613,7 @@
         label: "Remove repo DataDog APP key from repo {{ item.name }}"
       tags: [ 'bb_datadog' ]
 
-    - name: "Remove DataDog API host if defined"
+    - name: "Remove DataDog API host not if defined"
       community.general.bitbucket_pipeline_variable:
         repository: "{{ item.name }}"
         workspace: "{{ bb_username }}"
@@ -623,7 +623,7 @@
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_api_host is defined or (datadog is defined and datadog.api_host is defined)) and (limit_bb_repo is not defined or item.name.startswith(limit_bb_repo))"
+      when: "(item.dd_app_host is not defined and (datadog is not defined or datadog.app_host is not defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Remove repo DataDog API host for repo {{ item.name }}"
