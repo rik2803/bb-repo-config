@@ -623,7 +623,7 @@
         state: "absent"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(item.dd_app_host is not defined and (datadog is not defined or datadog.app_host is not defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
+      when: "(item.dd_api_host is not defined and (datadog is not defined or datadog.api_host is not defined)) and (limit_bb_repo is not defined or item.name == limit_bb_repo)"
       loop: "{{ repos }}"
       loop_control:
         label: "Remove repo DataDog API host for repo {{ item.name }}"
