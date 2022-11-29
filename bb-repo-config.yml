@@ -358,6 +358,22 @@
       loop_control:
         label: "Enable pipeline for {{ item.name }}"
 
+    - name: "Set BB repo pipeline variable SA_DURATION_SECONDS"
+      community.general.bitbucket_pipeline_variable:
+        repository: "{{ item.name }}"
+        workspace: "{{ bb_username }}"
+        name: "SA_DURATION_SECONDS"
+        value: "{{ service_accounts.duration_seconds }}"
+        secured: "no"
+        state: "{{ item.1.state | default('present') }}"
+        client_id: "{{ client_id }}"
+        client_secret: "{{ client_secret }}"
+      when: "(limit_bb_repo is not defined or item.name == limit_bb_repo) and service_accounts is defined ans service_accounts.duration_seconds is defined"
+      loop: "{{ repos }}"
+      loop_control:
+        label: "Set repo variable SA_DURATION_SECONDS for repo {{ item.name }}"
+      tags: [ 'bb_serviceaccounts' ]
+
     - name: "Set BB repo pipeline variable SA_ACCOUNT_LIST"
       community.general.bitbucket_pipeline_variable:
         repository: "{{ item.name }}"
