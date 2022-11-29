@@ -368,7 +368,7 @@
         state: "{{ item.1.state | default('present') }}"
         client_id: "{{ client_id }}"
         client_secret: "{{ client_secret }}"
-      when: "(limit_bb_repo is not defined or item.name == limit_bb_repo) and service_accounts is defined ans service_accounts.duration_seconds is defined"
+      when: "(limit_bb_repo is not defined or item.name == limit_bb_repo) and service_accounts is defined and service_accounts.duration_seconds is defined"
       loop: "{{ repos }}"
       loop_control:
         label: "Set repo variable SA_DURATION_SECONDS for repo {{ item.name }}"
