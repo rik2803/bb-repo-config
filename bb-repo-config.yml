@@ -265,7 +265,7 @@
           - 204
       when:
         - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
-        - "item.1.state == 'absent'"
+        - "item.1.state is defined and item.1.state == 'absent'"
       loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       loop_control:
         label: "Revoke group {{ item.1.group_slug }} {{ item.1.privilege }} access from repository {{ item.0.name }}"
