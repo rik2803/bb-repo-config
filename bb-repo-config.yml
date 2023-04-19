@@ -247,7 +247,7 @@
           - 201
       when:
         - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
-        - item.1.state != 'present' or item.1.state == 'NA'
+        - "item.1.state != 'present' or item.1.state == 'NA'"
       loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       loop_control:
         label: "Grant group {{ item.1.group_slug }} {{ item.1.privilege }} access on repository {{ item.0.name }}"
