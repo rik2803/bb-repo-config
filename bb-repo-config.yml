@@ -269,7 +269,7 @@
         - "item.1.state == 'absent'"
       loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       loop_control:
-        label: "Grant group {{ item.1.group_slug }} {{ item.1.privilege }} access on repository {{ item.0.name }}"
+        label: "Revoke group {{ item.1.group_slug }} {{ item.1.privilege }} access from repository {{ item.0.name }}"
       tags: [ 'bb_permissions' ]
 
     - name: "Always grant the default-reviewers group RW access to the repo"
