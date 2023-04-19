@@ -264,7 +264,9 @@
         status_code:
           - 200
           - 201
-      when: "item.1.state == 'absent'"
+      when:
+        - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
+        - "item.1.state == 'absent'"
       loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       loop_control:
         label: "Grant group {{ item.1.group_slug }} {{ item.1.privilege }} access on repository {{ item.0.name }}"
