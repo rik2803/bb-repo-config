@@ -262,8 +262,7 @@
         force_basic_auth: yes
         body: "{{ item.1.privilege }}"
         status_code:
-          - 200
-          - 201
+          - 204
       when:
         - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
         - "item.1.state == 'absent'"
