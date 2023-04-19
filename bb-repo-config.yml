@@ -245,10 +245,31 @@
         status_code:
           - 200
           - 201
-      when: "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
+      when:
+        - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
+        - "item.1.state == 'present' or item.1.state is not defined"
       loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
       loop_control:
         label: "Grant group {{ item.1.group_slug }} {{ item.1.privilege }} access on repository {{ item.0.name }}"
+      tags: [ 'bb_permissions' ]
+    
+    - name: "Remove repo permissions"
+      uri:
+        url: "https://api.bitbucket.org/1.0/group-privileges/{{ bb_workspace }}/{{ item.0.name }}/{{ bb_workspace }}/{{ item.1.group_slug }}"
+        method: DELETE
+        user: "{{  bb_user }}"
+        password: "{{  bb_apitoken }}"
+        force_basic_auth: yes
+        body: "{{ item.1.privilege }}"
+        status_code:
+          - 200
+          - 201
+      when:
+        - "limit_bb_repo is not defined or item.0.name == limit_bb_repo"
+        - "item.1.state == 'absent'"
+      loop: "{{ q('subelements', repos, 'group_permissions', {'skip_missing': True}) }}"
+      loop_control:
+        label: "Revoke group {{ item.1.group_slug }} {{ item.1.privilege }} access from repository {{ item.0.name }}"
       tags: [ 'bb_permissions' ]
 
     - name: "Always grant the default-reviewers group RW access to the repo"
